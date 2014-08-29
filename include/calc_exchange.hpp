@@ -87,16 +87,19 @@ public:
 			}
 		}
 
-		_h = cost * exchange_costrate();
-		//_h = cost * exchange_costrate();
+		//マンハッタン距離の合計値の表示用
+		//std::cout << cost << std::endl;
+
+		_h = cost * 2.0 * exchange_costrate() + 2.5*cost* select_num() / max_select_times();
+		//_h = cost;
 		return _h;
 	}
 
 	//合計コストg+hを返す
 	double get_totalcost(){
-		return  select_num() * select_costrate() + _h;
-		//return  select_num() * select_costrate() + exchange_num() * exchange_costrate() + _h;
-		//return  _h;
+		//return  select_num() * select_costrate() + _h;
+		//return exchange_num() + select_num() * select_costrate() + _h;
+		return  select_num() * select_costrate() + exchange_num() * exchange_costrate() + _h;
 	}
 
 	//次の状態ノードリストの生成
@@ -295,7 +298,6 @@ std::vector<std::string> op_format(std::shared_ptr<Node> start_ptr, std::shared_
 	while(trace != nullptr){
 		if(trace->op() == "R" || trace->op() == "U" || trace->op() == "L" || trace->op() == "D"){ //交換操作のとき
 			ops += trace->op();
-			//std::cout << trace->op() << std::endl;
 		}else{ //選択操作のとき
 			if(ops.size() > 0){ //1文字以上なら交換操作をpush_back
 				std::reverse(ops.begin(), ops.end());
@@ -356,16 +358,19 @@ std::vector<std::string>  calc_exchange(std::vector<std::vector<Index2D>> const 
 	std::vector<std::shared_ptr<Node>> openlist;
 	std::vector<std::shared_ptr<Node>> closedlist;
 
-	//std::cout << start_ptr->calc_cost_h(goal_ptr) << std::endl;
 	//スタートノードのコスト計算と親ノードの設定
 	start_ptr->calc_cost_h(goal_ptr);
 	start_ptr->set_parent(nullptr);
 	openlist.push_back(start_ptr);
 
 	while(openlist.size() > 0){
+		//最も評価の高いノードを選ぶ
 		std::shared_ptr<Node> p = get_best_node(openlist);
-		//std::cout << p->get_totalcost() << std::endl;
 
+		//コストと現在の選択回数の表示用
+		//std::cout << p->get_totalcost() << " " << p->select_num() << std::endl;
+
+		//openlistとclosedlistの表示用
 		/*
 		std::cout << "open:";
 		for(auto a : openlist){
@@ -384,9 +389,7 @@ std::vector<std::string>  calc_exchange(std::vector<std::vector<Index2D>> const 
 			break;
 		}
 
-		//std::cout << p->exchange_num() << std::endl;
 		for(auto st : p->get_next_state(goal_ptr)){
-			//std::cout << st->calc_cost_h(goal_ptr) << std::endl;
 			st->calc_cost_h(goal_ptr);
 			size_t oi = num_in_list(*st, openlist);
 			size_t ci = num_in_list(*st, closedlist);
@@ -394,17 +397,17 @@ std::vector<std::string>  calc_exchange(std::vector<std::vector<Index2D>> const 
 			if(oi != -1){
 				//オープンリストに入っているとき
 				if(openlist[oi]->get_totalcost() > st->get_totalcost()){
-					openlist[oi]->set_parent(p);
-					openlist[oi]->calc_cost_h(goal_ptr);
-					//openlist[oi] = st;
 					//openlist[oi]->set_parent(p);
+					//openlist[oi]->calc_cost_h(goal_ptr);
+					openlist[oi] = st;
+					openlist[oi]->set_parent(p);
 				}
 
 			}else if(ci != -1){
 				if(closedlist[ci]->get_totalcost() > st->get_totalcost()){
-					closedlist[ci]->set_parent(p);
-					closedlist[ci]->calc_cost_h(goal_ptr);
-					//st->set_parent(p);
+					//closedlist[ci]->set_parent(p);
+					//closedlist[ci]->calc_cost_h(goal_ptr);
+					st->set_parent(p);
 					closedlist.erase(closedlist.begin() + ci);
 					openlist.push_back(st);
 				}
