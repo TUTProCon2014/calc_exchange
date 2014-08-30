@@ -9,6 +9,7 @@
 #include <queue>
 #include <string>
 #include <map>
+#include <cmath>
 #include <cstdio>
 
 namespace procon { namespace calc_exchange{
@@ -82,8 +83,8 @@ public:
 		for(size_t i=0; i < _state.size(); i++){
 			for(size_t j=0; j < _state[0].size(); j++){
 				changed[i][j] = targetzero[changed[i][j]];
-				cost += abs(changed[i][j][0] - i);
-				cost += abs(changed[i][j][1] - j);
+				cost += std::abs(static_cast<std::ptrdiff_t>(changed[i][j][0] - i));
+				cost += std::abs(static_cast<std::ptrdiff_t>(changed[i][j][1] - j));
 			}
 		}
 
@@ -128,15 +129,15 @@ public:
 
 					//マンハッタン距離が一番大きいものを見つける
 					auto changed = nstate;
-					int max = std::numeric_limits<int>::min();
+					size_t max = std::numeric_limits<size_t>::min();
 					for(size_t i=0; i < _state.size(); i++){
 						for(size_t j=0; j < _state[0].size(); j++){
 							//状態を番号付けし直し、コストを計算
 
-							int cost = 0;
+							size_t cost = 0;
 							changed[i][j] = targetzero[changed[i][j]];
-							cost += abs(changed[i][j][0] - i);
-							cost += abs(changed[i][j][1] - j);
+							cost += std::abs(static_cast<std::ptrdiff_t>(changed[i][j][0] - i));
+							cost += std::abs(static_cast<std::ptrdiff_t>(changed[i][j][1] - j));
 
 							if(cost > max){ 
 								max = cost;
@@ -176,17 +177,17 @@ public:
 
 		//マンハッタン距離が一番大きいものを見つける
 		auto changed = _state;
-		int max = std::numeric_limits<int>::min();
+		size_t max = std::numeric_limits<size_t>::min();
 		int ny = -1;
 		int nx = -1;
 		for(size_t i=0; i < _state.size(); i++){
 			for(size_t j=0; j < _state[0].size(); j++){
 				//状態を番号付けし直し、コストを計算
 
-				int cost = 0;
+				size_t cost = 0;
 				changed[i][j] = targetzero[changed[i][j]];
-				cost += abs(changed[i][j][0] - i);
-				cost += abs(changed[i][j][1] - j);
+				cost += std::abs(static_cast<std::ptrdiff_t>(changed[i][j][0] - i));
+				cost += std::abs(static_cast<std::ptrdiff_t>(changed[i][j][1] - j));
 
 				if(cost > max){ 
 					max = cost;
