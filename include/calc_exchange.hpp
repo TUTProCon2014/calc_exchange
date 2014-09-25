@@ -11,6 +11,7 @@
 #include <map>
 #include <cmath>
 #include <cstdio>
+#include <set>
 
 namespace procon { namespace calc_exchange{
 
@@ -60,22 +61,9 @@ public:
 		_parent = parent;
 	}
 
-	//状態pを整列した番号にかえる対応付けの生成
-	std::map<Index2D, Index2D> renumbering(std::shared_ptr<Node> p){
-		std::map<Index2D, Index2D> targetzero;	//ターゲットの状態を整列された番号にする
-		for(size_t i=0; i < _state.size(); i++){
-			for(size_t j=0; j < _state[0].size(); j++){
-				targetzero[p->state()[i][j]] = makeIndex2D(i, j);
-			}
-		}
-
-		return targetzero;
-	}
 
 	//pまでの推定コストhを計算
-	double calc_cost_h(std::shared_ptr<Node> p){
-		//ゴール状態を番号付けし直す
-		std::map<Index2D, Index2D> targetzero = renumbering(p);
+	double calc_cost_h(std::map<Index2D, Index2D> targetzero){
 		
 		//現状態を番号付けし直し、コストを計算
 		auto changed = _state;
@@ -91,8 +79,10 @@ public:
 		//マンハッタン距離の合計値の表示用
 		//std::cout << cost << std::endl;
 
+		//_h = cost * 2.0 * exchange_costrate();
 		_h = cost * 2.0 * exchange_costrate() + 2.5*cost* select_num() / max_select_times();
-		//_h = cost;
+		//_h = cost * 2.0 * exchange_costrate() + 15.0*cost* select_num() / max_select_times();
+		//_h = cost / 2.0;
 		return _h;
 	}
 
@@ -104,7 +94,7 @@ public:
 	}
 
 	//次の状態ノードリストの生成
-	std::vector<std::shared_ptr<Node>> get_next_state(std::shared_ptr<Node> goal){
+	std::vector<std::shared_ptr<Node>> get_next_state(std::shared_ptr<Node> goal, std::map<Index2D, Index2D> targetzero){
 		int dx[] = {1, 0, -1, 0, 0};
 		int dy[] = {0, -1, 0, 1, 0};
 		std::string operation[] = {"R", "U", "L", "D", ""};
@@ -123,9 +113,6 @@ public:
 					nstate[ny][nx] = temp;
 				}else if(select_num() < max_select_times()){ //選択断片のチェンジ
 					std::vector<std::vector<Index2D>> nstate = _state;	//変更後の状態
-
-					//ゴール状態を番号付けし直す
-					std::map<Index2D, Index2D> targetzero = renumbering(goal);
 
 					//マンハッタン距離が一番大きいものを見つける
 					auto changed = nstate;
@@ -163,17 +150,13 @@ public:
 				}
 			}
 		}
-
 		
 		_next_state_list = next;
 		return next;
 	}
 
 	//start_ptrのみが呼び出す
-	void init(std::shared_ptr<Node> goal_ptr){
-
-		//ゴール状態を番号付けし直す
-		std::map<Index2D, Index2D> targetzero = renumbering(goal_ptr);
+	void init(std::map<Index2D, Index2D> targetzero){
 
 		//マンハッタン距離が一番大きいものを見つける
 		auto changed = _state;
@@ -264,6 +247,18 @@ size_t Node::_max_select_times;
 int Node::_select_costrate;
 int Node::_exchange_costrate; 
 
+//状態pを整列した番号にかえる対応付けの生成
+std::map<Index2D, Index2D> renumbering(std::shared_ptr<Node> p){
+	std::map<Index2D, Index2D> targetzero;	//ターゲットの状態を整列された番号にする
+	for(size_t i=0; i < p->state().size(); i++){
+		for(size_t j=0; j < p->state()[0].size(); j++){
+			targetzero[p->state()[i][j]] = makeIndex2D(i, j);
+		}
+	}
+
+	return targetzero;
+}
+
 //リストから最も評価の高いノードを選ぶ
 std::shared_ptr<Node> get_best_node(std::vector<std::shared_ptr<Node>> openlist){
 	double min = std::numeric_limits<double>::max();
@@ -280,14 +275,6 @@ std::shared_ptr<Node> get_best_node(std::vector<std::shared_ptr<Node>> openlist)
 	return ret;
 }
 
-//リストの中にpが含まれているかどうか
-size_t num_in_list(Node x, std::vector<std::shared_ptr<Node>> l){
-	for(size_t i=0; i<l.size(); i++){
-		if(l[i]->state() == x.state() && l[i]->select() == x.select())
-			return i;
-	}
-	return -1;
-}
 
 //解答のフォーマットで操作列を作成
 std::vector<std::string> op_format(std::shared_ptr<Node> start_ptr, std::shared_ptr<Node> goal_ptr){
@@ -336,6 +323,27 @@ std::vector<std::string> op_format(std::shared_ptr<Node> start_ptr, std::shared_
 	return ret;
 }
 
+//openlistとclosedlistで用いるstd::setの比較用構造体
+struct LessNode{
+	bool operator()(std::shared_ptr<Node> const & ln, std::shared_ptr<Node> const & rn) const {
+        if (ln->get_totalcost() < rn->get_totalcost())
+            return true;
+        else if (ln->get_totalcost() > rn->get_totalcost())
+            return false;
+ 
+        return ln.get() < rn.get();
+    }
+};
+
+//リストの中にpが含まれているかどうか
+std::multiset<std::shared_ptr<Node>>::iterator num_in_list(std::shared_ptr<Node> x, std::multiset<std::shared_ptr<Node>, LessNode> const & l){
+	for(auto it = l.begin(); it != l.end(); it++){
+		if((*it)->state() == x->state() && (*it)->select() == x->select())
+			return it;
+	}
+	return l.end();
+}
+
 std::vector<std::string>  calc_exchange(std::vector<std::vector<Index2D>> const & target, int select_costrate, int exchange_costrate, size_t max_select_times){
 	std::vector<Node*> exop;	//交換手順
 
@@ -350,23 +358,26 @@ std::vector<std::string>  calc_exchange(std::vector<std::vector<Index2D>> const 
 	std::shared_ptr<Node> goal_ptr(new Node(target, "", makeIndex2D(0, 0), std::numeric_limits<int>::max(), 0, 0)); //ゴール状態のポインタ
 
 	std::shared_ptr<Node> start_ptr(new Node(ss, "no", makeIndex2D(0, 0), 0, 0, 0));	//スタート状態のポインタ
-	start_ptr->init(goal_ptr); //初期選択断片を決める
+
+	std::map<Index2D, Index2D> targetzero = renumbering(goal_ptr);
+
+	start_ptr->init(targetzero); //初期選択断片を決める
 	//start_ptr->set_max_select_times(max_select_times); //最大選択可能数のset
 	start_ptr->set_max_select_times(max_select_times); //最大選択可能数のset
 	start_ptr->set_select_costrate(select_costrate); //選択コストレートのset
 	start_ptr->set_exchange_costrate(exchange_costrate); //交換コストレートのset
 
-	std::vector<std::shared_ptr<Node>> openlist;
-	std::vector<std::shared_ptr<Node>> closedlist;
+	std::multiset<std::shared_ptr<Node>, LessNode> openlist;
+	std::multiset<std::shared_ptr<Node>, LessNode> closedlist;
 
 	//スタートノードのコスト計算と親ノードの設定
-	start_ptr->calc_cost_h(goal_ptr);
+	start_ptr->calc_cost_h(targetzero);
 	start_ptr->set_parent(nullptr);
-	openlist.push_back(start_ptr);
+	openlist.insert(start_ptr);
 
 	while(openlist.size() > 0){
 		//最も評価の高いノードを選ぶ
-		std::shared_ptr<Node> p = get_best_node(openlist);
+		std::shared_ptr<Node> p = *(openlist.begin());
 
 		//コストと現在の選択回数の表示用
 		//std::cout << p->get_totalcost() << " " << p->select_num() << std::endl;
@@ -385,42 +396,48 @@ std::vector<std::string>  calc_exchange(std::vector<std::vector<Index2D>> const 
 		puts("");
 		*/
 		
+		//最終状態と一致したら終了
 		if(p->state() == goal_ptr->state()){
 			goal_ptr = p;
 			break;
 		}
 
-		for(auto st : p->get_next_state(goal_ptr)){
-			st->calc_cost_h(goal_ptr);
-			size_t oi = num_in_list(*st, openlist);
-			size_t ci = num_in_list(*st, closedlist);
+		//最も評価の高いノードから次状態を生成
+		for(auto st : p->get_next_state(goal_ptr, targetzero)){
+			st->calc_cost_h(targetzero);
+			auto oi = openlist.find(st);
+			auto ci = closedlist.find(st);
+			//auto oi = num_in_list(st, openlist);
+			//auto ci = num_in_list(st, closedlist);
 
-			if(oi != -1){
+			if(oi != openlist.end()){
 				//オープンリストに入っているとき
-				if(openlist[oi]->get_totalcost() > st->get_totalcost()){
+				if((*oi)->get_totalcost() > st->get_totalcost()){
 					//openlist[oi]->set_parent(p);
 					//openlist[oi]->calc_cost_h(goal_ptr);
-					openlist[oi] = st;
-					openlist[oi]->set_parent(p);
+					st->set_parent(p);
+					openlist.erase(oi);
+					openlist.insert(st);
 				}
 
-			}else if(ci != -1){
-				if(closedlist[ci]->get_totalcost() > st->get_totalcost()){
+			}else if(ci != closedlist.end()){
+				if((*ci)->get_totalcost() > st->get_totalcost()){
 					//closedlist[ci]->set_parent(p);
 					//closedlist[ci]->calc_cost_h(goal_ptr);
 					st->set_parent(p);
-					closedlist.erase(closedlist.begin() + ci);
-					openlist.push_back(st);
+					closedlist.erase(ci);
+					openlist.insert(st);
 				}
 			}else{
 				//まだリストに入っていないのでオープンリストに追加
 				st->set_parent(p);
-				st->calc_cost_h(goal_ptr);
-				openlist.push_back(st);
+				st->calc_cost_h(targetzero);
+				openlist.insert(st);
 			}
 		}
-		openlist.erase(std::remove(openlist.begin(), openlist.end(), p), openlist.end());
-		closedlist.push_back(p);
+		openlist.erase(p);
+		closedlist.insert(p);
+		
 	}
 
 	//結果の出力
