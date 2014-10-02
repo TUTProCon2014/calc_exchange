@@ -62,7 +62,8 @@ public:
 		size_t idx = 1;				//ansの行番号
 		for(size_t i=0; i < _select_num; i++){
 			idx++;												//選択断片位置の行
-			_ans[idx++] = std::to_string(_ans[idx+1].size());	//交換回数の代入
+			_ans[idx] = std::to_string(_ans[idx+1].size());		//交換回数の代入
+			idx++;												
 			idx++;												//交換操作の行
 		}
 
