@@ -10,6 +10,7 @@
 #include <vector>
 #include <cmath>
 #include <cstdio>
+#include <unordered_map>
 
 namespace procon { namespace greedy_calc_exchange{
 
@@ -60,7 +61,10 @@ public:
 
 	//交換操作文字列の最後の文字をクリア
 	void remove(){
-		_ans[_ans.size()-1].erase(--_ans[_ans.size()-1].end());
+		//_ans[_ans.size()-1].erase(--_ans[_ans.size()-1].end());
+        auto& str = _ans[_ans.size()-1];
+        if (str.size())
+            str.resize(str.size()-1);
 	}
 
 	//最終処理
@@ -79,15 +83,15 @@ public:
 	}
 
 	//ゲッター
-	std::vector<std::string> ans(){
+	const std::vector<std::string>& ans() const {
 		return _ans;
 	}
 
-	Index2D select(){
+	Index2D select() const {
 		return _select;
 	}
 
-	Index2D before(){
+	Index2D before() const {
 		return _before;
 	}
 
@@ -95,7 +99,7 @@ public:
 
 
 //prototype宣言
-void move_piece(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, const std::vector<std::vector<ImageID>>& target, const Index2D& tgt, const Index2D dst);
+void move_piece(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>> const & used, const std::vector<std::vector<ImageID>>& target, const Index2D& tgt, const Index2D& dst);
 std::vector<std::vector<ImageID>> make_start_state(const size_t & height, const size_t & width);
 Index2D search_piece(ImageID piece, const std::vector<std::vector<ImageID>> & from);
 void target_piece_clear(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, const std::vector<std::vector<ImageID>>& target, Index2D tgt, Index2D dist, const Direction dir);
@@ -308,194 +312,122 @@ void target_piece_clear(Answer& ans, std::vector<std::vector<ImageID>>& state, s
 	}
 }
 
+
+struct DijkstraData
+{
+    DijkstraData()
+    : answer(), state(), distance(0) {}
+
+	DijkstraData(Answer ans, std::vector<std::vector<ImageID>> st, ptrdiff_t c)
+	: answer(ans), state(st), distance(c) {}
+
+
+	Answer answer;
+	std::vector<std::vector<ImageID>> state;
+	ptrdiff_t distance;
+
+
+	bool operator==(DijkstraData const & rhs) const
+	{
+		return answer.select() == rhs.answer.select();
+	}
+
+	struct Index2DHash
+	{
+		size_t operator()(Index2D const & s) const
+		{
+            std::hash<size_t> h;
+			return h(s[0]) + h(s[1]);
+		}
+	};
+};
+
 //断片の移動
 //ans.select()をdstの位置へusedで移動禁止されている位置を通らずにもっていく
-void move_piece(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, const std::vector<std::vector<ImageID>>& target, const Index2D& tgt, const Index2D dst){
+void move_piece(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>> const & used, const std::vector<std::vector<ImageID>>& target, const Index2D& tgt, const Index2D& dst){
+	
+	using HashMap = std::unordered_map<Index2D, DijkstraData, DijkstraData::Index2DHash>;
 
-	int cnt = 0;	//はまって抜け出せなくなる現象の解決策
+	HashMap hashMap;
+	hashMap[ans.select()] = DijkstraData(ans, state, 0);
 
-	while(ans.select() != dst){	//目的地に到達するまで繰り返す
+	while(1){
+		HashMap nextGen = hashMap;
 
-		//移動量
-		int my[4] = {0, -1, 0, 1};	
-		int mx[4] = {1, 0, -1, 0};
-		//selectを一時的に別変数に確保(見やすさのためだけ)
-		Index2D sel = ans.select();								
-		//目的位置までのy距離(intでキャストしないと負数になる場合あり)
-		size_t dy = std::abs((int)sel[0] - (int)dst[0]);		
-		//目的位置までのx距離
-		size_t dx = std::abs((int)sel[1] - (int)dst[1]);		
-		//移動するべき方向の決定
-		Direction ydir = (dst[0] < sel[0]) ? Direction::up : Direction::down;		
-		Direction xdir = (dst[1] < sel[1]) ? Direction::left : Direction::right;
+		// nextGenに必要ならば追加する
+		auto pushToNextGen = [&nextGen, &dst, &target, &used](DijkstraData const & e, ptrdiff_t i, ptrdiff_t j, Direction dir) -> bool
+		{
+			if(i < 0 || j < 0 || i >= e.state.size() || j >= e.state[i].size())
+				return false;
 
-		Index2D xmoved = sel;	//x方向への移動を行った後の座標
-		Index2D ymoved = sel;	//y方向への移動を行った後の座標
+			if(used[i][j])
+				return false;
 
-		xmoved[1] += mx[(size_t)xdir];	//x方向への移動
-		ymoved[0] += my[(size_t)ydir];	//y方向への移動
+			DijkstraData next = e;
 
-		size_t xdy = std::abs((int)xmoved[0] - (int)dst[0]);		//x方向に移動後の目的位置までのy距離
-		size_t xdx = std::abs((int)xmoved[1] - (int)dst[1]);		//x方向に移動後の目的位置までのx距離
-		size_t ydy = std::abs((int)ymoved[0] - (int)dst[0]);		//y方向に移動後の目的位置までのy距離
-		size_t ydx = std::abs((int)ymoved[1] - (int)dst[1]);		//y方向に移動後の目的位置までのx距離
+			// 入れ替え前の、選択している位置bSelと、移動先の位置bNei
+			auto bSel = next.answer.select();										// 移動前
+			auto bNei = Index2D({static_cast<size_t>(i), static_cast<size_t>(j)});	// 移動先
+			auto bNeiDST = search_piece(next.state[bNei[0]][bNei[1]], target);			// 移動先の断片が行きたい場所
+			exchange(next.answer, next.state, bNei, dir);
 
-		//範囲チェック + usedチェック + マンハッタン距離が縮まったかのチェック
-		bool xmovable = xmoved[0] >= 0 && xmoved[0] < state.size() && xmoved[1] >= 0 && xmoved[1] < state[0].size() && !used[xmoved[0]][xmoved[1]];
-		bool ymovable = ymoved[0] >= 0 && ymoved[0] < state.size() && ymoved[1] >= 0 && ymoved[1] < state[0].size() && !used[ymoved[0]][ymoved[1]]; 
-		bool xvaridity = dy + dx > xdy + xdx;
-		bool yvaridity = dy + dx > ydy + ydx;
+			// 入れ替え後の、選択している位置aSelと、入れ替えされた他の断片の位置aNei
+			auto aSel = bNei,		// 結局swap
+			     aNei = bSel;		// ditto
 
-		//x移動をするかy移動をするかのフラグ
-		bool xmove_f = false;
-		bool ymove_f = false;
-		//どちらの移動も有効かどうかのフラグ
-		bool two_movable_f = false;
+			// 移動前の距離を引く
+			next.distance -= std::abs(static_cast<ptrdiff_t>(dst[0] - bSel[0]))
+			               + std::abs(static_cast<ptrdiff_t>(dst[1] - bSel[1]))
+			               + std::abs(static_cast<ptrdiff_t>(bNeiDST[0] - bNei[0]))
+			               + std::abs(static_cast<ptrdiff_t>(bNeiDST[1] - bNei[1]));
 
-		if(xmovable && xvaridity && ymovable && yvaridity){		//x方向の移動もy方向の移動もどちらも有効なとき
-			two_movable_f = true;
+			// 移動後の距離を足す
+			next.distance += std::abs(static_cast<ptrdiff_t>(dst[0] - aSel[0]))
+			               + std::abs(static_cast<ptrdiff_t>(dst[1] - aSel[1]))
+			               + std::abs(static_cast<ptrdiff_t>(bNeiDST[0] - aNei[0]))
+			               + std::abs(static_cast<ptrdiff_t>(bNeiDST[1] - aNei[1]));
 
-			Index2D xsub_dist = search_piece(state[xmoved[0]][xmoved[1]], target);	//x方向に移動したときに動く断片の最終目的地
-			Index2D ysub_dist = search_piece(state[ymoved[0]][ymoved[1]], target);	//y方向に移動したときに動く断片の最終目的地
+            // 入れ替え操作を一度行ったため+1
+            next.distance += 1;
 
-			size_t b_sub_xdy = std::abs((int)xmoved[0] - (int)xsub_dist[0]);		//x方向に移動した時に動く断片の現在の目的地までのマンハッタン距離
-			size_t b_sub_xdx = std::abs((int)xmoved[1] - (int)xsub_dist[1]);		
-			size_t b_sub_ydy = std::abs((int)ymoved[0] - (int)ysub_dist[0]);		//y方向に移動した時に動く断片の現在の目的地までのマンハッタン距離
-			size_t b_sub_ydx = std::abs((int)ymoved[1] - (int)ysub_dist[1]);	
-			
-			size_t a_sub_xdy = std::abs((int)sel[0] - (int)xsub_dist[0]);			//x方向に移動した時に動く断片の移動後の目的地までのマンハッタン距離
-			size_t a_sub_xdx = std::abs((int)sel[1] - (int)xsub_dist[1]);		
-			size_t a_sub_ydy = std::abs((int)sel[0] - (int)ysub_dist[0]);			//y方向に移動した時に動く断片の移動後の目的地までのマンハッタン距離
-			size_t a_sub_ydx = std::abs((int)sel[1] - (int)ysub_dist[1]);	
-
-			//移動した時のマンハッタン距離の変化量
-			int x_imp = (a_sub_xdy - b_sub_xdy) + (a_sub_xdx - b_sub_xdx);			//x方向に移動した時に動く断片
-			int y_imp = (a_sub_ydy - b_sub_ydy) + (a_sub_ydx - b_sub_ydx);			//y方向に移動した時に動く断片
-
-			if(x_imp <= y_imp ){
-				xmove_f = true;
+			// 既に探索されてるか確認する
+            if (nextGen.find(aSel) == nextGen.end()){
+				// 未だに無いので、新たに加える
+				nextGen.emplace(aSel, std::move(next));
+				return true;
 			}else{
-				ymove_f = true;
+                auto& other = nextGen[aSel];
+
+				// 見つかったので、必要なら更新する
+				if(other.distance > next.distance){
+					other = std::move(next);
+					return true;
+				}else
+					return false;
 			}
+		};
 
+		size_t cnt = 0;
+		for(auto e: hashMap){
+            auto& data = e.second;
+			Index2D sel = e.second.answer.select();
+
+			if(pushToNextGen(data, static_cast<ptrdiff_t>(sel[0]+1), static_cast<ptrdiff_t>(sel[1]  ), Direction::down )) ++cnt;
+			if(pushToNextGen(data, static_cast<ptrdiff_t>(sel[0]-1), static_cast<ptrdiff_t>(sel[1]  ), Direction::up   )) ++cnt;
+			if(pushToNextGen(data, static_cast<ptrdiff_t>(sel[0]  ), static_cast<ptrdiff_t>(sel[1]+1), Direction::right)) ++cnt;
+			if(pushToNextGen(data, static_cast<ptrdiff_t>(sel[0]  ), static_cast<ptrdiff_t>(sel[1]-1), Direction::left )) ++cnt;
 		}
-		
-		if((two_movable_f != true && xmovable && xvaridity) || xmove_f){			//x方向移動
 
-			//交換
-			exchange(ans, state, xmoved, xdir);
-
-		}else if((two_movable_f != true && ymovable && yvaridity) || ymove_f){	//y方向移動
-
-			//交換	
-			exchange(ans, state, ymoved, ydir);
-
-		}else{	//マンハッタン距離が縮まらない(つまっている) -> この時必ずtgtと接触してつまっている(特殊移動)
-
-			cnt++;	//カウント
-
-			//x移動の後、y移動
-			//左右移動
-			if(tgt[1] == sel[1]){								//tgtとx座標が一致
-
-				Index2D lmoved = sel;							//左方向への移動を行った後の座標
-				Index2D rmoved = sel;							//右方向への移動を行った後の座標	
-				lmoved[1] += mx[(size_t)Direction::left];		//移動
-				rmoved[1] += mx[(size_t)Direction::right];
-
-				//cntの値によって２方向どちらにもいけるときにどちらにいくかを変化させ、偏りをなくしてはまりをなくした
-				if(cnt % 3 == 0){
-					if(lmoved[0] >= 0 && lmoved[0] < state.size() && lmoved[1] >= 0 
-					&& lmoved[1] < state[0].size() && !used[lmoved[0]][lmoved[1]]){		//範囲チェック + usedチェック
-
-						//左方向交換
-						exchange(ans, state, lmoved, Direction::left);	//xmove
-						lmoved[0] += my[(size_t)ydir];
-						exchange(ans, state, lmoved, ydir);				//ymove
-
-					}else if(rmoved[0] >= 0 && rmoved[0] < state.size() && rmoved[1] >= 0 
-							&& rmoved[1] < state[0].size() && !used[rmoved[0]][rmoved[1]]){
-
-						//右方向交換
-						exchange(ans, state, rmoved, Direction::right);	//xmove
-						rmoved[0] += my[(size_t)ydir];
-						exchange(ans, state, rmoved, ydir);				//ymove
-
-					}
-
-				}else{
-
-					if(rmoved[0] >= 0 && rmoved[0] < state.size() && rmoved[1] >= 0 
-							&& rmoved[1] < state[0].size() && !used[rmoved[0]][rmoved[1]]){
-
-						//右方向交換
-						exchange(ans, state, rmoved, Direction::right);	//xmove
-						rmoved[0] += my[(size_t)ydir];
-						exchange(ans, state, rmoved, ydir);				//ymove
-
-					}else if(lmoved[0] >= 0 && lmoved[0] < state.size() && lmoved[1] >= 0 
-					&& lmoved[1] < state[0].size() && !used[lmoved[0]][lmoved[1]]){			//範囲チェック + usedチェック
-
-						//左方向交換
-						exchange(ans, state, lmoved, Direction::left);	//xmove
-						lmoved[0] += my[(size_t)ydir];
-						exchange(ans, state, lmoved, ydir);				//ymove
-
-					}
-				}
-
-			}else if(tgt[0] == sel[0]){		//y移動の後、x移動(tgtとy座標が一致)
-
-				//上下移動
-				Index2D umoved = sel;						//上方向への移動を行った後の座標
-				Index2D dmoved = sel;						//下方向への移動を行った後の座標	
-				umoved[0] += my[(size_t)Direction::up];		//移動	
-				dmoved[0] += my[(size_t)Direction::down];
-
-				//cntの値によって２方向どちらにもいけるときにどちらにいくかを変化させ、偏りをなくしてはまりをなくした
-				if(cnt % 3 == 0){				
-
-					if(umoved[0] >= 0 && umoved[0] < state.size() && umoved[1] >= 0 
-					&& umoved[1] < state[0].size() && !used[umoved[0]][umoved[1]]){		//範囲チェック + usedチェック
-
-						//上方向交換
-						exchange(ans, state, umoved, Direction::up);	//ymove
-						umoved[1] += mx[(size_t)xdir];
-						exchange(ans, state, umoved, xdir);				//xmove
-
-					}else if(dmoved[0] >= 0 && dmoved[0] < state.size() && dmoved[1] >= 0 
-					&& dmoved[1] < state[0].size() && !used[dmoved[0]][dmoved[1]]){
-
-						//下方向交換
-						exchange(ans, state, dmoved, Direction::down);	//ymove
-						dmoved[1] += mx[(size_t)xdir];
-						exchange(ans, state, dmoved, xdir);				//xmove
-
-					}
-
-				}else{
-
-					if(dmoved[0] >= 0 && dmoved[0] < state.size() && dmoved[1] >= 0 
-					&& dmoved[1] < state[0].size() && !used[dmoved[0]][dmoved[1]]){
-
-						//下方向交換
-						exchange(ans, state, dmoved, Direction::down);	//ymove
-						dmoved[1] += mx[(size_t)xdir];
-						exchange(ans, state, dmoved, xdir);	//xmove
-					}else if(umoved[0] >= 0 && umoved[0] < state.size() && umoved[1] >= 0 
-					&& umoved[1] < state[0].size() && !used[umoved[0]][umoved[1]]){		//範囲チェック + usedチェック
-
-						//上方向交換
-						exchange(ans, state, umoved, Direction::up);	//ymove
-						umoved[1] += mx[(size_t)xdir];
-						exchange(ans, state, umoved, xdir);	//xmove
-
-					}
-				}
-				
-			}
-		}
+		hashMap = std::move(nextGen);
+		if(cnt == 0)
+			break;
 	}
+
+	auto it = hashMap.find(dst);
+	PROCON_ENFORCE(it != hashMap.end(), "Cannot reach to dst.");
+
+	ans = it->second.answer;
+	state = it->second.state;
 }
 
 //selectと隣接断片の交換を行う(解答への交換操作追加処理含む)
