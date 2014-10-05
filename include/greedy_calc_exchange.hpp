@@ -203,11 +203,13 @@ void target_piece_clear(Answer& ans, std::vector<std::vector<ImageID>>& state, s
 
 		}
 
+
 		//残りのx座標を合わせる(x座標からやることで一度も壁にぶつからずに持っていける)
 		for(size_t i=0; i < dx; i++){
 
 			//tgtの移動
-			move_target(ans, state, used, target, tgt[0], (int)tgt[1] + mx[(size_t)xdir], tgt);	
+			Index2D tmp = makeIndex2D(tgt[0], (int)tgt[1] + mx[(size_t)xdir]);
+			move_target(ans, state, used, target, tmp[0], tmp[1], tgt);	
 
 			//selectとtgtの交換
 			Index2D moved = tgt;	//selectの移動先
@@ -345,7 +347,7 @@ struct DijkstraData
 //断片の移動
 //ans.select()をdstの位置へusedで移動禁止されている位置を通らずにもっていく
 void move_piece(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>> const & used, const std::vector<std::vector<ImageID>>& target, const Index2D& tgt, const Index2D& dst){
-	
+
 	using HashMap = std::unordered_map<Index2D, DijkstraData, DijkstraData::Index2DHash>;
 
 	HashMap hashMap;
@@ -433,17 +435,6 @@ void move_piece(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vect
 //selectと隣接断片の交換を行う(解答への交換操作追加処理含む)
 void exchange(Answer& ans, std::vector<std::vector<ImageID>>& state, const Index2D moved, Direction dir){
 
-	//遷移の表示
-	/*
-	puts("------------------------------------------------------------------------------");
-	for(int i=0; i<state.size(); i++){
-		for(int j=0; j<state[0].size(); j++){
-			printf("[%lu %lu] ", state[i][j].get_index()[0], state[i][j].get_index()[1]);
-		}
-		puts("");
-	}
-	puts("");
-	*/
 
 	//前回のselect座標を取得
 	Index2D before = ans.before();
@@ -491,6 +482,8 @@ void exchange(Answer& ans, std::vector<std::vector<ImageID>>& state, const Index
 //tgt1が先に入れる方(端にくる断片)
 void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, const std::vector<std::vector<ImageID>>& target, Index2D tgt1, Index2D tgt2, Index2D dist1, Index2D dist2, Direction dir, ImageID tgt1id, ImageID tgt2id){
 
+	Index2D moved;		//移動時に使う
+
 	if(dir == Direction::up){	//上方向につめている
 
 		//問題のある状況を除去
@@ -512,6 +505,35 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 
 		//tgt1の移動によりtgt2の座標が変わる場合があるのでもう一度tgt2の座標検索
 		tgt2 = search_piece(tgt2id, state);
+		if(tgt2[0] == dist1[0] && tgt2[1] == dist1[1] + 1){		//絶対車庫入れできない状況になったときのスペシャルmove
+
+			used[dist1[0]][dist1[1]] = true;
+			used[dist1[0]][dist1[1]+1] = true;
+
+			move_piece(ans, state, used, target, tgt2,  makeIndex2D(dist1[0] + 1, dist1[1] + 1));		//右上隅の１つした
+			used[dist1[0]][dist1[1]] = false;
+			used[dist1[0]][dist1[1]+1] = false;
+
+			//select上移動
+			moved = makeIndex2D(dist1[0], dist1[1]+1);	//一番右上隅							
+			tgt2 = ans.select();								//tgt2の座標の変更
+			exchange(ans, state, moved, Direction::up);			//selectの上移動
+			//select左移動
+			moved = makeIndex2D(dist1[0], dist1[1]);	//一番右上隅の１つ左						
+			tgt1 = ans.select();								//tgt1の座標の変更
+			exchange(ans, state, moved, Direction::left);		//selectの左移動
+
+			//tgt2を離す
+			target_piece_clear(ans, state, used, target, tgt2, makeIndex2D(dist1[0] + 2, dist1[1] + 1), Direction::up);
+			
+			//tgt1を元の位置に戻す
+			used[dist1[0] + 2][dist1[1] + 1] = true;
+			target_piece_clear(ans, state, used, target, tgt1, dist1, Direction::up);
+			used[dist1[0] + 2][dist1[1] + 1] = false;
+		}
+
+		//もう一度tgt2の座標検索
+		tgt2 = search_piece(tgt2id, state);
 		//tgt2を指定した位置に入れる(このときtgt1を移動しないようにする)
 		used[dist1[0]][dist1[1]] = true;
 		target_piece_clear(ans, state, used, target, tgt2, dist2, Direction::up);
@@ -520,12 +542,12 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 		//tgt2の現在位置を取得
 		tgt2 = search_piece(tgt2id, state);
 		//指定位置まで選択断片を移動する
-		used[dist2[0]][dist2[1]] = true;												//tgt2の位置を通れないようにする
+		used[dist2[0]][dist2[1]] = true;														//tgt2の位置を通れないようにする
 		move_piece(ans, state, used, target, tgt2,  makeIndex2D(dist1[0], dist1[1] + 1));		//一番右上隅
-		used[dist2[0]][dist2[1]] = false;												//usedをもとにもどしておく
+		used[dist2[0]][dist2[1]] = false;														//usedをもとにもどしておく
 
 		//車庫入れ交換移動
-		Index2D moved = dist1;							//selectはtgt1の位置に移動
+		moved = dist1;									//selectはtgt1の位置に移動
 		tgt1 = ans.select();							//tgt1の座標の変更
 		exchange(ans, state, moved, Direction::left);	//selectの左移動
 
@@ -554,6 +576,35 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 
 		//tgt1の移動によりtgt2の座標が変わる場合があるのでもう一度座標検索
 		tgt2 = search_piece(tgt2id, state);
+		if(tgt2[0] == dist1[0] - 1 && tgt2[1] == dist1[1]){			//絶対車庫入れできない状況になったときのスペシャルmove
+
+			used[dist1[0]][dist1[1]] = true;
+			used[dist1[0]-1][dist1[1]] = true;
+
+			move_piece(ans, state, used, target, tgt2,  makeIndex2D(dist1[0] - 1, dist1[1] + 1));		//右上隅の１つした
+			used[dist1[0]][dist1[1]] = false;
+			used[dist1[0]-1][dist1[1]] = false;
+
+			//select左移動
+			moved = makeIndex2D(dist1[0] - 1, dist1[1]);		//一番左上隅							
+			tgt2 = ans.select();								//tgt2の座標の変更
+			exchange(ans, state, moved, Direction::left);		//selectの上移動
+			//select下移動
+			moved = makeIndex2D(dist1[0], dist1[1]);			//一番右上隅の１つ左						
+			tgt1 = ans.select();								//tgt1の座標の変更
+			exchange(ans, state, moved, Direction::down);		//selectの左移動
+
+			//tgt2を離す
+			target_piece_clear(ans, state, used, target, tgt2, makeIndex2D(dist1[0] - 1, dist1[1] + 2), Direction::left);
+			
+			//tgt1を元の位置に戻す
+			used[dist1[0] - 1][dist1[1] + 2] = true;
+			target_piece_clear(ans, state, used, target, tgt1, dist1, Direction::left);
+			used[dist1[0] - 1][dist1[1] + 2] = false;
+		}
+
+		//もう一度座標検索
+		tgt2 = search_piece(tgt2id, state);
 		//tgt2を指定した位置に入れる(tgt1を動かさないようにする)
 		used[dist1[0]][dist1[1]] = true;
 		target_piece_clear(ans, state, used, target, tgt2, dist2, Direction::left);
@@ -563,12 +614,12 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 		//tgt2の現在位置を取得
 		tgt2 = search_piece(tgt2id, state);
 		//指定位置まで選択断片を移動する
-		used[dist2[0]][dist2[1]] = true;											//tgt2の位置を通れないようにする
+		used[dist2[0]][dist2[1]] = true;													//tgt2の位置を通れないようにする
 		move_piece(ans, state, used, target, tgt2,  makeIndex2D(dist1[0] - 1, dist1[1]));	//一番左下隅
-		used[dist2[0]][dist2[1]] = false;											// usedをもとにもどしておく
+		used[dist2[0]][dist2[1]] = false;													// usedをもとにもどしておく
 
 		//車庫入れ交換移動
-		Index2D moved = dist1;							//selectはtgt1の位置に移動
+		moved = dist1;									//selectはtgt1の位置に移動
 		tgt1 = ans.select();							//tgt1の座標の変更
 		exchange(ans, state, moved, Direction::down);	//selectの下移動
 
