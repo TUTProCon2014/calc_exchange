@@ -530,6 +530,21 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 			used[dist1[0] + 2][dist1[1] + 1] = true;
 			target_piece_clear(ans, state, used, target, tgt1, dist1, Direction::up);
 			used[dist1[0] + 2][dist1[1] + 1] = false;
+		}else if(tgt2[0] == dist1[0] + 1 && tgt2[1] == dist1[1] + 1){
+			//tgt1をつめたときにtgt1とtgt2で閉じ込められる場合
+			
+			//select左移動
+			moved = makeIndex2D(dist1[0], dist1[1]);	//一番右上隅の１つ左						
+			tgt1 = ans.select();								//tgt1の座標の変更
+			exchange(ans, state, moved, Direction::left);		//selectの左移動
+
+			//tgt2を離す
+			target_piece_clear(ans, state, used, target, tgt2, makeIndex2D(dist1[0] + 2, dist1[1] + 1), Direction::up);
+			
+			//tgt1を元の位置に戻す
+			used[dist1[0] + 2][dist1[1] + 1] = true;
+			target_piece_clear(ans, state, used, target, tgt1, dist1, Direction::up);
+			used[dist1[0] + 2][dist1[1] + 1] = false;
 		}
 
 		//もう一度tgt2の座標検索
@@ -581,7 +596,7 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 			used[dist1[0]][dist1[1]] = true;
 			used[dist1[0]-1][dist1[1]] = true;
 
-			move_piece(ans, state, used, target, tgt2,  makeIndex2D(dist1[0] - 1, dist1[1] + 1));		//右上隅の１つした
+			move_piece(ans, state, used, target, tgt2,  makeIndex2D(dist1[0] - 1, dist1[1] + 1));		//左上隅の１つ右
 			used[dist1[0]][dist1[1]] = false;
 			used[dist1[0]-1][dist1[1]] = false;
 
@@ -589,6 +604,21 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 			moved = makeIndex2D(dist1[0] - 1, dist1[1]);		//一番左上隅							
 			tgt2 = ans.select();								//tgt2の座標の変更
 			exchange(ans, state, moved, Direction::left);		//selectの上移動
+			//select下移動
+			moved = makeIndex2D(dist1[0], dist1[1]);			//一番右上隅の１つ左						
+			tgt1 = ans.select();								//tgt1の座標の変更
+			exchange(ans, state, moved, Direction::down);		//selectの左移動
+
+			//tgt2を離す
+			target_piece_clear(ans, state, used, target, tgt2, makeIndex2D(dist1[0] - 1, dist1[1] + 2), Direction::left);
+			
+			//tgt1を元の位置に戻す
+			used[dist1[0] - 1][dist1[1] + 2] = true;
+			target_piece_clear(ans, state, used, target, tgt1, dist1, Direction::left);
+			used[dist1[0] - 1][dist1[1] + 2] = false;
+		}else if(tgt2[0] == dist1[0] - 1 && tgt2[1] == dist1[1] + 1){
+			//tgt1をつめたときにtgt1とtgt2で閉じ込められる場合
+
 			//select下移動
 			moved = makeIndex2D(dist1[0], dist1[1]);			//一番右上隅の１つ左						
 			tgt1 = ans.select();								//tgt1の座標の変更
