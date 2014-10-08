@@ -13,13 +13,13 @@
 using namespace procon;
 
 int main(){
-	auto p_opt = utils::Problem::get("img1.ppm");
+    auto p_opt = utils::Problem::get("img1.ppm");
 
-	if(!p_opt)
-		p_opt = inout::get_problem_from_test_server(1);
+    if(!p_opt)
+        p_opt = inout::get_problem_from_test_server(1);
 
-	if(p_opt){
-		const utils::Problem& p = *p_opt;
+    if(p_opt){
+        const utils::Problem& p = *p_opt;
 
         // 復元に使うための、2つの画像のくっつき度合いを返す関数
         auto pred = [&](utils::Image const & img1,
@@ -32,16 +32,16 @@ int main(){
         // 復元
         auto idxs = GUESS_FUNC(p, pred);
 
-		std::cout << std::endl;
+        std::cout << std::endl;
 
-		//計算した交換操作の文字列の表示
-		for(auto s : calc_exchange::calc_exchange(idxs, p.select_cost(), p.change_cost(), p.max_select_times())){
-			std::cout << s << std::endl;
-		}
+        //計算した交換操作の文字列の表示
+        for(auto s : calc_exchange::calc_exchange(idxs, p.select_cost(), p.change_cost(), p.max_select_times())){
+            std::cout << s << std::endl;
+        }
 
-		
-	}else
-		std::cout << "死" << std::endl;
+        
+    }else
+        std::cout << "死" << std::endl;
 
-	return 0;
+    return 0;
 }
