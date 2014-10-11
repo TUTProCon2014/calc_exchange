@@ -23,20 +23,17 @@ private:
 	std::vector<std::string> _ans;		//解答
 	Index2D _select;					//選択中の断片座標
 	int _select_num;					//選択数
-	Index2D _before;					//1つ前の選択座標
 
 public:
 	//コンストラクタ
 	Answer(){
 		_ans.push_back("");					//選択回数用にあけておく
-		_select = makeIndex2D(100, 100);	//100,100にしておけばbeforeが次のselectとかぶる心配がない
+		_select = makeIndex2D(100, 100);	
 		_select_num = 0;
-		_before = makeIndex2D(100, 100);	
 	}
 
 	//選択操作
 	void set_select(Index2D s){
-		_before = makeIndex2D(100, 100);	//選択後に交換してbeforeとselectが一致するのは問題ない
 		_select = s;						//選択断片のセット
 		_select_num++;						//選択数をカウント
 
@@ -55,7 +52,6 @@ public:
 
 	//選択断片位置のチェンジ(解答には追加しない)
 	void move_select(Index2D s){
-		_before = _select;				//以前のselectをbeforeにセット
 		_select = s;
 	}
 
@@ -65,6 +61,38 @@ public:
         auto& str = _ans[_ans.size()-1];
         if (str.size())
             str.resize(str.size()-1);
+	}
+
+
+	//これから入れようとしている交換操作に意味があるかのチェック
+	bool is_meaningless(Direction dir){
+		auto& str = _ans[_ans.size()-1];
+
+		//これから入れようとしている交換操作と反対方向の交換が入っているならtrueを返す
+        switch((size_t)dir){
+            case (size_t)Direction::up :
+				if(str.size() > 0 && str[str.size()-1] == 'D'){
+					return true;
+				}
+                break;
+            case (size_t)Direction::right :
+				if(str.size() > 0 && str[str.size()-1] == 'L'){
+					return true;
+				}
+                break;
+            case (size_t)Direction::down :
+				if(str.size() > 0 && str[str.size()-1] == 'U'){
+					return true;
+				}
+                break;
+            case (size_t)Direction::left :
+				if(str.size() > 0 && str[str.size()-1] == 'R'){
+					return true;
+				}
+                break;
+        }
+
+		return false;
 	}
 
 	//最終処理
@@ -89,10 +117,6 @@ public:
 
 	Index2D select() const {
 		return _select;
-	}
-
-	Index2D before() const {
-		return _before;
 	}
 
 };
@@ -436,9 +460,6 @@ void move_piece(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vect
 void exchange(Answer& ans, std::vector<std::vector<ImageID>>& state, const Index2D moved, Direction dir){
 
 
-	//前回のselect座標を取得
-	Index2D before = ans.before();
-
 	//stateを変化
 	Index2D sel = ans.select();		//一時的にselectを代入
 
@@ -453,12 +474,12 @@ void exchange(Answer& ans, std::vector<std::vector<ImageID>>& state, const Index
 	//現在のselect座標取得
 	Index2D now = ans.select();
 
-	if(now[0] == before[0] && now[1] == before[1]){
+    if(ans.is_meaningless(dir)){
 
-		//解答の交換操作を１文字削除
-		ans.remove();
+        //解答の交換操作を１文字削除
+        ans.remove();
 
-	}else{
+    }else{
 
 		//解答に交換操作を追加
 		switch((size_t)dir){
@@ -505,6 +526,9 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 
 		//tgt1の移動によりtgt2の座標が変わる場合があるのでもう一度tgt2の座標検索
 		tgt2 = search_piece(tgt2id, state);
+		//選択断片の位置
+		auto sel = ans.select();
+
 		if(tgt2[0] == dist1[0] && tgt2[1] == dist1[1] + 1){		//絶対車庫入れできない状況になったときのスペシャルmove
 
 			used[dist1[0]][dist1[1]] = true;
@@ -530,7 +554,7 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 			used[dist1[0] + 2][dist1[1] + 1] = true;
 			target_piece_clear(ans, state, used, target, tgt1, dist1, Direction::up);
 			used[dist1[0] + 2][dist1[1] + 1] = false;
-		}else if(tgt2[0] == dist1[0] + 1 && tgt2[1] == dist1[1] + 1){
+		}else if(tgt2[0] == dist1[0] + 1 && tgt2[1] == dist1[1] + 1 && sel[0] == dist1[0] && sel[1] == dist1[1] + 1){
 			//tgt1をつめたときにtgt1とtgt2で閉じ込められる場合
 			
 			//select左移動
@@ -591,6 +615,9 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 
 		//tgt1の移動によりtgt2の座標が変わる場合があるのでもう一度座標検索
 		tgt2 = search_piece(tgt2id, state);
+		//選択断片位置
+		auto sel = ans.select();
+
 		if(tgt2[0] == dist1[0] - 1 && tgt2[1] == dist1[1]){			//絶対車庫入れできない状況になったときのスペシャルmove
 
 			used[dist1[0]][dist1[1]] = true;
@@ -616,7 +643,7 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 			used[dist1[0] - 1][dist1[1] + 2] = true;
 			target_piece_clear(ans, state, used, target, tgt1, dist1, Direction::left);
 			used[dist1[0] - 1][dist1[1] + 2] = false;
-		}else if(tgt2[0] == dist1[0] - 1 && tgt2[1] == dist1[1] + 1){
+		}else if(tgt2[0] == dist1[0] - 1 && tgt2[1] == dist1[1] + 1 && sel[0] == dist1[0] - 1 && sel[1] == dist1[1]){
 			//tgt1をつめたときにtgt1とtgt2で閉じ込められる場合
 
 			//select下移動
@@ -680,7 +707,9 @@ void first_solve(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vec
 				Index2D tgt2 = search_piece(target[i][j+1], state);			//断片画像は同じy座標で最も右の断片
 
 				//車庫入れ本体
-				parking_in_garage(ans, state, used, target, tgt2, tgt, dist, dist2, Direction::up, target[i][j+1], target[dist[0]][dist[1]]);
+				if(tgt[0] != dist[0] || tgt[1] != dist[1] || tgt2[0] != (int)i || tgt2[0] != (int)j + 1){
+					parking_in_garage(ans, state, used, target, tgt2, tgt, dist, dist2, Direction::up, target[i][j+1], target[dist[0]][dist[1]]);
+				}
 
 				//右端から1つ隣をusedにする
 				used[dist[0]][dist[1]] = true;		
@@ -707,7 +736,9 @@ void second_solve(Answer& ans, std::vector<std::vector<ImageID>>& state, std::ve
 
 
 			//車庫入れ本体
-			parking_in_garage(ans, state, used, target, tgt2, tgt, dist, dist2, Direction::left, target[i-1][j], target[dist[0]][dist[1]]);
+			if(tgt[0] != dist[0] || tgt[1] != dist[1] || tgt2[0] != (int)i - 1 || tgt2[0] != (int)j){
+				parking_in_garage(ans, state, used, target, tgt2, tgt, dist, dist2, Direction::left, target[i-1][j], target[dist[0]][dist[1]]);
+			}
 
 			//左下すみをusedにする
 			used[dist[0]][dist[1]] = true;		
