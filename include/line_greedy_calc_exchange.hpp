@@ -25,21 +25,18 @@ private:
     Index2D _select;                    //選択中の断片座標
     ImageID _select_id;                 //選択中の断片id
     int _select_num;                    //選択数
-    Index2D _before;                    //1つ前の選択座標
     std::stack<Direction> _final_move;      //最後のselect移動処理
 
 public:
     //コンストラクタ
     Answer(){
         _ans.push_back("");                 //選択回数用にあけておく
-        _select = makeIndex2D(100, 100);    //100,100にしておけばbeforeが次のselectとかぶる心配がない
+        _select = makeIndex2D(100, 100);    //100,100にしておく
         _select_num = 0;
-        _before = makeIndex2D(100, 100);    
     }
 
     //選択操作
     void set_select(Index2D s){
-        _before = makeIndex2D(100, 100);    //選択後に交換してbeforeとselectが一致するのは問題ない
         _select = s;                        //選択断片のセット
         _select_num++;                      //選択数をカウント
 
@@ -63,7 +60,6 @@ public:
 
     //選択断片位置のチェンジ(解答には追加しない)
     void move_select(Index2D s){
-        _before = _select;              //以前のselectをbeforeにセット
         _select = s;
     }
 
@@ -74,6 +70,37 @@ public:
         if(str.size())
             str.resize(str.size()-1);
     }
+
+	//これから入れようとしている交換操作に意味があるかのチェック
+	bool is_meaningless(Direction dir){
+		auto& str = _ans[_ans.size()-1];
+
+		//これから入れようとしている交換操作と反対方向の交換が入っているならtrueを返す
+        switch((size_t)dir){
+            case (size_t)Direction::up :
+				if(str.size() > 0 && str[str.size()-1] == 'D'){
+					return true;
+				}
+                break;
+            case (size_t)Direction::right :
+				if(str.size() > 0 && str[str.size()-1] == 'L'){
+					return true;
+				}
+                break;
+            case (size_t)Direction::down :
+				if(str.size() > 0 && str[str.size()-1] == 'U'){
+					return true;
+				}
+                break;
+            case (size_t)Direction::left :
+				if(str.size() > 0 && str[str.size()-1] == 'R'){
+					return true;
+				}
+                break;
+        }
+
+		return false;
+	}
 
     //最終処理
     void finish(){
@@ -110,10 +137,6 @@ public:
 
     Index2D select() const {
         return _select;
-    }
-
-    Index2D before() const {
-        return _before;
     }
 
     ImageID select_id() const {
@@ -420,7 +443,7 @@ void move_piece(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vect
         // nextGenに必要ならば追加する
         auto pushToNextGen = [&nextGen, &dst, &target, &used, &scope](DijkstraData const & e, ptrdiff_t i, ptrdiff_t j, Direction dir) -> bool
         {
-            if(i < scope.top || j < scope.left || i >= scope.bottom + 1 || j >= scope.right + 1)
+            if(i < scope.top || j < scope.left || i > scope.bottom || j > scope.right)
                 return false;
 
             if(used[i][j])
@@ -508,9 +531,6 @@ void exchange(Answer& ans, std::vector<std::vector<ImageID>>& state, const Index
     puts("");
     */
 
-    //前回のselect座標を取得
-    Index2D before = ans.before();
-
     //stateを変化
     Index2D sel = ans.select();     //一時的にselectを代入
 
@@ -525,7 +545,7 @@ void exchange(Answer& ans, std::vector<std::vector<ImageID>>& state, const Index
     //現在のselect座標取得
     Index2D now = ans.select();
 
-    if(now[0] == before[0] && now[1] == before[1]){
+    if(ans.is_meaningless(dir)){
 
         //解答の交換操作を１文字削除
         ans.remove();
@@ -560,12 +580,14 @@ void special_move(Answer& ans, std::vector<std::vector<ImageID>>& state, std::ve
     int fselpos_addy[4] = {1, 1, -1, -1};
     int fselpos_addx[4] = {-1, 1, 1, -1};
     //special move時の移動方向
-    Direction sp_move[4][2] = {
-                         {Direction::right, Direction::up},     //Right
-                         {Direction::up, Direction::left},      //UP
-                         {Direction::left, Direction::down},    //Left
-                         {Direction::down, Direction::right}    //Down
+    Direction sp_move[4] = {
+                         Direction::right,		//Right
+                         Direction::up,			//UP
+                         Direction::left,		//Left
+                         Direction::down		//Down
                         };
+    //select移動後座標を格納する変数
+    Index2D moved;
 
     //selectを移動
     used[dist1[0]][dist1[1]] = true;
@@ -577,6 +599,12 @@ void special_move(Answer& ans, std::vector<std::vector<ImageID>>& state, std::ve
     used[(int)dist1[0] + corner_addy[(size_t)dir]][(int)dist1[1] + (int)corner_addx[(size_t)dir]] = false;
 
     //special move
+    //第1移動
+    moved = makeIndex2D((int)dist1[0] + (int)corner_addy[(size_t)dir], (int)dist1[1] + (int)corner_addx[(size_t)dir]);
+    tgt2 = ans.select();
+    exchange(ans, state, moved, sp_move[(size_t)dir]);
+
+	//第2移動以降
     div_tgts(ans, state, used, target, tgt1, tgt2, dist1, dist2, dir, scope);
 }
 
@@ -589,23 +617,19 @@ void div_tgts(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector
     int sep_addy[4] = {1, 2, -1, -2};
     int sep_addx[4] = {-2, 1, 2, -1};
     //special move時の移動方向
-    Direction sp_move[4][2] = {
-                         {Direction::right, Direction::up},     //Right
-                         {Direction::up, Direction::left},      //UP
-                         {Direction::left, Direction::down},    //Left
-                         {Direction::down, Direction::right}    //Down
+    Direction sp_move[4] = {
+                         Direction::up,			//Right
+                         Direction::left,		//UP
+                         Direction::down,		//Left
+                         Direction::right		//Down
                         };
     //select移動後座標を格納する変数
     Index2D moved;
     
-    //第1移動
-    moved = makeIndex2D((int)dist1[0] + (int)corner_addy[(size_t)dir], (int)dist1[1] + (int)corner_addx[(size_t)dir]);
-    tgt2 = ans.select();
-    exchange(ans, state, moved, sp_move[(size_t)dir][0]);
     //第2移動
     moved = makeIndex2D(dist1[0], dist1[1]);
     tgt1 = ans.select();
-    exchange(ans, state, moved, sp_move[(size_t)dir][1]);
+    exchange(ans, state, moved, sp_move[(size_t)dir]);
 
     //tgt2を離す
     int sep_posy = (int)dist1[0] + sep_addy[(size_t)dir];
@@ -626,7 +650,9 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
     int checkx[4] = {-1, 1, 1, -1};
 
 
-    //問題のある状況を除去
+    //問題のある状況を除去(ここをコメントアウトしないほうがよくなる問題もある)
+	//分割数が大きい画像のほうがここがないときの減少量が大きいが、一概に言えるものではなかった
+	/*
     for(size_t i=0; i < 2; i++){
         for(size_t j=0; j < 2; j++){
             if((int)dist1[0] + checky[(size_t)dir] * (int)i == tgt2[0] && (int)dist1[1] + checkx[(size_t)dir] * (int)j == tgt2[1]){                     //この4マスに入っている場合は、そこから断片2を追い出す
@@ -658,6 +684,7 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
             }
         }
     }
+	*/
 
     //上の移動によりtgt1の座標が変わる場合があるのでもう一度tgt1の座標検索
     tgt1 = search_piece(tgt1id, state);
@@ -670,12 +697,14 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
     //tgt1から斜めの位置の座標を得るための変数
     int diag_addy[4] = {1, 1, -1, -1};
     int diag_addx[4] = {-1, 1, 1, -1};
+	//選択断片位置
+	auto sel = ans.select();
 
     //tgt1の移動によりtgt2の座標が変わる場合があるのでもう一度tgt2の座標検索
     tgt2 = search_piece(tgt2id, state);
     if(tgt2[0] == (int)dist1[0] + (int)cornery[(size_t)dir] && tgt2[1] == (int)dist1[1] + (int)cornerx[(size_t)dir]){
         special_move(ans, state, used, target, tgt1, tgt2, dist1, dist2, dir, scope);
-    }else if(tgt2[0] == (int)dist1[0] + (int)diag_addy[(size_t)dir] && tgt2[1] == (int)dist1[1] + (int)diag_addx[(size_t)dir]){
+    }else if(tgt2[0] == (int)dist1[0] + (int)diag_addy[(size_t)dir] && tgt2[1] == (int)dist1[1] + (int)diag_addx[(size_t)dir] && sel[0] == (int)dist1[0] + (int)cornery[(size_t)dir] && sel[1] == (int)dist1[1] + (int)cornerx[(size_t)dir]){
         div_tgts(ans, state, used, target, tgt1, tgt2, dist1, dist2, dir, scope);
     }
 
@@ -1097,7 +1126,7 @@ std::vector<std::string> line_greedy_calc_exchange(std::vector<std::vector<Image
     }
 
     //最終状態の表示
-    /*
+	/*
     puts("------------------------------------------------------------------------------");
     for(int i=0; i<target.size(); i++){
         for(int j=0; j<target[0].size(); j++){
@@ -1106,7 +1135,7 @@ std::vector<std::string> line_greedy_calc_exchange(std::vector<std::vector<Image
         puts("");
     }
     puts("");
-    */
+	*/
     //スタートの状態の生成
     std::vector<std::vector<ImageID>> state = make_start_state(height, width);
 
