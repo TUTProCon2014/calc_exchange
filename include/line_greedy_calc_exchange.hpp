@@ -167,7 +167,7 @@ std::vector<std::vector<ImageID>> make_start_state(const size_t & height, const 
 Index2D search_piece(ImageID piece, const std::vector<std::vector<ImageID>> & from);
 void target_piece_clear(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, Index2D tgt, Index2D dist, const Direction dir, const Rect& scope);
 void exchange(Answer& ans, std::vector<std::vector<ImageID>>& state, const Index2D moved, Direction dir);
-void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, Index2D tgt1, Index2D tgt2, Index2D dist1, Index2D dist2, Direction dir, ImageID tgt1id, ImageID tgt2id, const Rect& scope);
+void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, Index2D tgt1, Index2D tgt2, Index2D dist1, Index2D dist2, Direction dir, ImageID tgt1id, ImageID tgt2id, const Rect& scope, bool prev_f);
 ImageID makeImageID(size_t i, size_t j);
 void first_solve(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, const Rect& scope, Direction next);
 void second_solve(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, const std::vector<std::vector<ImageID>>& target, const size_t height, const size_t width);
@@ -644,7 +644,7 @@ void div_tgts(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector
 
 //車庫入れ
 //tgt1が先に入れる方(端にくる断片)
-void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, Index2D tgt1, Index2D tgt2, Index2D dist1, Index2D dist2, Direction dir, ImageID tgt1id, ImageID tgt2id, const Rect& scope){
+void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, Index2D tgt1, Index2D tgt2, Index2D dist1, Index2D dist2, Direction dir, ImageID tgt1id, ImageID tgt2id, const Rect& scope, bool prev_f){
     //問題のある状況のcheck時にみる方向
     int checky[4] = {1, 1, -1, -1};
     int checkx[4] = {-1, 1, 1, -1};
@@ -652,42 +652,42 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 
     //問題のある状況を除去(ここをコメントアウトしないほうがよくなる問題もある)
 	//分割数が大きい画像のほうがここがないときの減少量が大きいが、一概に言えるものではなかった
-	/*
-    for(size_t i=0; i < 2; i++){
-        for(size_t j=0; j < 2; j++){
-            if((int)dist1[0] + checky[(size_t)dir] * (int)i == tgt2[0] && (int)dist1[1] + checkx[(size_t)dir] * (int)j == tgt2[1]){                     //この4マスに入っている場合は、そこから断片2を追い出す
-                int outy;           //問題があったときに追い出し先の座標を求めるときに使う
-                int outx;
+	if(prev_f){
+		for(size_t i=0; i < 2; i++){
+			for(size_t j=0; j < 2; j++){
+				if((int)dist1[0] + checky[(size_t)dir] * (int)i == tgt2[0] && (int)dist1[1] + checkx[(size_t)dir] * (int)j == tgt2[1]){                     //この4マスに入っている場合は、そこから断片2を追い出す
+					int outy;           //問題があったときに追い出し先の座標を求めるときに使う
+					int outx;
 
-                switch((size_t)dir){
-                    case (size_t)Direction::up :
-                        outy = dist1[0] + 2;
-                        outx = dist1[1] + j;
-                        break;
-                    case (size_t)Direction::right :
-                        outy = dist1[0] + i;
-                        outx = dist1[1] - 2;
-                        break;
-                    case (size_t)Direction::down :
-                        outy = dist1[0] - 2;
-                        outx = dist1[1] - j;
-                        break;
-                    case (size_t)Direction::left :
-                        outy = dist1[0] - i;
-                        outx = dist1[1] + 2;
-                        break;
-                }
+					switch((size_t)dir){
+						case (size_t)Direction::up :
+							outy = dist1[0] + 2;
+							outx = dist1[1] + j;
+							break;
+						case (size_t)Direction::right :
+							outy = dist1[0] + i;
+							outx = dist1[1] - 2;
+							break;
+						case (size_t)Direction::down :
+							outy = dist1[0] - 2;
+							outx = dist1[1] - j;
+							break;
+						case (size_t)Direction::left :
+							outy = dist1[0] - i;
+							outx = dist1[1] + 2;
+							break;
+					}
 
-                Index2D dist3 = makeIndex2D(outy, outx);            //追い出し先の座標
-                target_piece_clear(ans, state, used, target, tgt2, dist3, Direction::up, scope);    //追い出す
-                    
-            }
-        }
-    }
-	*/
+					Index2D dist3 = makeIndex2D(outy, outx);            //追い出し先の座標
+					target_piece_clear(ans, state, used, target, tgt2, dist3, Direction::up, scope);    //追い出す
+						
+				}
+			}
+		}
 
-    //上の移動によりtgt1の座標が変わる場合があるのでもう一度tgt1の座標検索
-    tgt1 = search_piece(tgt1id, state);
+		//上の移動によりtgt1の座標が変わる場合があるのでもう一度tgt1の座標検索
+		tgt1 = search_piece(tgt1id, state);
+	}
     //tgt1を指定した位置に入れる
     target_piece_clear(ans, state, used, target, tgt1, dist1, dir, scope);
 
@@ -906,7 +906,47 @@ void first_solve(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vec
 
                 //車庫入れ本体
                 if(tgt[0] != dist[0] || tgt[1] != dist[1] || tgt2[0] != (int)i + tgt2_addy || tgt2[1] != (int)j + tgt2_addx){
-                    parking_in_garage(ans, state, used, target, tgt2, tgt, dist, dist2, dir, target[i + tgt2_addy][j + tgt2_addx], target[i][j], scope);
+					//予防策があるのとないのどちらもやってみる
+void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, Index2D tgt1, Index2D tgt2, Index2D dist1, Index2D dist2, Direction dir, ImageID tgt1id, ImageID tgt2id, const Rect& scope, bool prev_f);
+					//各変数別個に用意しておく
+					Answer ans1,ans2;
+					ans1 = ans2 = ans;
+
+					std::vector<std::vector<ImageID>> state1, state2;
+					state1 = state2 = state;
+
+					std::vector<std::vector<bool>> used1, used2;
+					used1 = used2 = used;
+
+					std::vector<std::vector<ImageID>> target1, target2;
+					target1 = target2 = target;
+
+					/*
+					Rect scope1, scope2;
+					scope1 = scope2 = scope;
+					*/
+
+                    parking_in_garage(ans1, state1, used1, target1, tgt2, tgt, dist, dist2, dir, target[i + tgt2_addy][j + tgt2_addx], target[i][j], scope, false);
+                    parking_in_garage(ans2, state2, used2, target2, tgt2, tgt, dist, dist2, dir, target[i + tgt2_addy][j + tgt2_addx], target[i][j], scope, true);
+
+					//良い結果な方をansとして残す
+					auto v1 = ans1.ans();
+					auto v2 = ans2.ans();
+					auto s1 = v1[v1.size()-1];
+					auto s2 = v2[v2.size()-1];
+					if(s1.size() < s2.size()){
+						ans = ans1;
+						state = state1;
+						used = used1;
+						target = target1;
+						//scope = scope1;
+					}else{
+						ans = ans2;
+						state = state2;
+						used = used2;
+						target = target2;
+						//scope = scope2;
+					}
                 }
 
                 //[i, j]をusedにする
