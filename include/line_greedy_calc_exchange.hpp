@@ -25,6 +25,7 @@ private:
     Index2D _select;                    //選択中の断片座標
     ImageID _select_id;                 //選択中の断片id
     int _select_num;                    //選択数
+	int _exchange_num;					//交換数
     std::stack<Direction> _final_move;      //最後のselect移動処理
 
 public:
@@ -33,6 +34,7 @@ public:
         _ans.push_back("");                 //選択回数用にあけておく
         _select = makeIndex2D(100, 100);    //100,100にしておく
         _select_num = 0;
+		_exchange_num = 0;
     }
 
     //選択操作
@@ -56,6 +58,7 @@ public:
     //交換操作
     void exchange(std::string dir){
         _ans[_ans.size()-1] += dir;
+		_exchange_num++;
     }
 
     //選択断片位置のチェンジ(解答には追加しない)
@@ -65,6 +68,7 @@ public:
 
     //交換操作文字列の最後の文字をクリア
     void remove(){
+		_exchange_num--;
         //_ans[_ans.size()-1].erase(--_ans[_ans.size()-1].end());
         auto& str = _ans[_ans.size()-1];
         if(str.size())
@@ -147,6 +151,13 @@ public:
         return _final_move;
     }
 
+	int select_num() const {
+		return _select_num;
+	}
+
+	int exchange_num() const {
+		return _exchange_num;
+	}
 };
 
 typedef struct _Rect{
@@ -179,6 +190,7 @@ void move_target(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vec
 void special_move(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, Index2D tgt1, Index2D tgt2, Index2D dist1, Index2D dist2, Direction dir, const Rect& scope);
 void div_tgts(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, Index2D tgt1, Index2D tgt2, Index2D dist1, Index2D dist2, Direction dir, const Rect& scope);
 void solver(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, const std::vector<std::vector<ImageID>>& true_target, const size_t height, const size_t width);
+void lux_move(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>const & used, std::vector<std::vector<ImageID>>& target, int max_select_times, const int height, const int width);
 
 
 //ImageIDの生成
@@ -921,11 +933,6 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 					std::vector<std::vector<ImageID>> target1, target2;
 					target1 = target2 = target;
 
-					/*
-					Rect scope1, scope2;
-					scope1 = scope2 = scope;
-					*/
-
                     parking_in_garage(ans1, state1, used1, target1, tgt2, tgt, dist, dist2, dir, target[i + tgt2_addy][j + tgt2_addx], target[i][j], scope, false);
                     parking_in_garage(ans2, state2, used2, target2, tgt2, tgt, dist, dist2, dir, target[i + tgt2_addy][j + tgt2_addx], target[i][j], scope, true);
 
@@ -939,13 +946,11 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
 						state = state1;
 						used = used1;
 						target = target1;
-						//scope = scope1;
 					}else{
 						ans = ans2;
 						state = state2;
 						used = used2;
 						target = target2;
-						//scope = scope2;
 					}
                 }
 
@@ -961,34 +966,6 @@ void parking_in_garage(Answer& ans, std::vector<std::vector<ImageID>>& state, st
     }
 
 }
-
-//右下部分に4マスだけ残してそれ以外の左下部分をすべて完成させる
-/*
-void second_solve(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, const std::vector<std::vector<ImageID>>& target, const size_t height, const size_t width){
-
-    for(size_t j=0; j < width-2; j++){
-        for(size_t i=height-1; i < height; i++){
-
-            Index2D dist = makeIndex2D(i, j);                               //目的座標
-            Index2D tgt = search_piece(target[dist[0]][dist[1]], state);    //disの位置にくるべきpieceの位置を探索
-            
-            Index2D dist2 = makeIndex2D(i, j+1);                            //目的座標2(distと同じy座標で1つx座標が大きい値)
-            Index2D tgt2 = search_piece(target[i-1][j], state);             //断片画像は同じx座標で最も右の断片
-
-
-            //車庫入れ本体
-            parking_in_garage(ans, state, used, target, tgt2, tgt, dist, dist2, Direction::left, target[i-1][j], target[dist[0]][dist[1]]);
-
-            //左下すみをusedにする
-            used[dist[0]][dist[1]] = true;      
-            //左下隅の1つ上をusedにする
-            used[dist[0]-1][dist[1]] = true;    
-
-        }
-    }
-
-}
-*/
 
 //右下部分の4マスを完成させる
 void final_solve(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>& used, std::vector<std::vector<ImageID>>& target, const std::vector<std::vector<ImageID>>& true_target, const Rect& scope){
@@ -1149,6 +1126,40 @@ void solver(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<s
     
 }
 
+//ぜいたくに選択を使う
+void lux_move(Answer& ans, std::vector<std::vector<ImageID>>& state, std::vector<std::vector<bool>>const & used, std::vector<std::vector<ImageID>>& target, int max_select_times, const int height, const int width){
+
+	//selectを2だけ残してぜいたくに使う
+	while(max_select_times > 2){
+
+		max_select_times--;
+
+		//マンハッタン距離が最大の断片を見つける
+		int max_mhd = std::numeric_limits<int>::min();	//最大のマンハッタン距離
+		Index2D sel;
+		Index2D dst;
+		for(size_t i=0; i < height; i++){
+			for(size_t j=0; j < width; j++){
+				if(i == 0 || i == height-1 || j == 0 || j == width-1){
+						Index2D tgt;
+						tgt = search_piece(target[i][j], state);        //tgtの位置をサーチ
+						auto mhd = std::abs((int)tgt[0] - (int)i) + std::abs((int)tgt[1] - (int)j);        //マンハッタン距離
+						if(mhd > max_mhd){
+							max_mhd = mhd;	
+							sel = tgt;
+							dst = makeIndex2D(i, j);
+						}
+					
+				}
+			}
+		}
+		if(max_mhd == 0) break;		//もう一致しているなら動かす必要はない
+		ans.set_selectID(makeImageID(dst[0], dst[1]));	//選択断片IDのセット
+		ans.set_select(sel);							//選択
+		Rect scope(0, 0, width-1, height-1);			//一応の範囲指定
+		move_piece(ans, state, used, target, sel, dst, scope);    //目的位置に直接持っていく
+	}
+}
 
 //かなめの関数
 std::vector<std::string> line_greedy_calc_exchange(std::vector<std::vector<ImageID>> target, int select_costrate, int exchange_costrate, size_t max_select_times){
@@ -1179,21 +1190,67 @@ std::vector<std::string> line_greedy_calc_exchange(std::vector<std::vector<Image
     //スタートの状態の生成
     std::vector<std::vector<ImageID>> state = make_start_state(height, width);
 
-    //targetでの右下にある断片の選択
-    ImageID first = target[height - 1][width - 1];
-    ans.set_selectID(first);                        //選択断片IDのセット
-    Index2D temp = first.get_index();
-    ans.set_select(search_piece(first, state));     //最初の選択
-
     //=============交換操作算出========================
     std::vector<std::vector<ImageID>> fix_target = target;                      //修正されるtarget
-    solver(ans, state, used, fix_target, target, height, width);
+
+	//選択コスト重視と、交換コスト重視で分けるために各々２つの変数を用意
+	auto ans1 = ans;
+	auto ans2 = ans;
+	auto state1 = state;
+	auto state2 = state;
+	auto used1 = used;
+	auto used2 = used;
+	auto fix_target1 = fix_target;
+	auto fix_target2 = fix_target;
+
+	auto mean_move = std::max(width, height) - 1;	//lux_moveで一回の選択で平均動く量の経験則上の値
+	//lux_moveをするかしないかのフラグ(小さい問題であれば２つとも実行しても時間がかからないので実行する)
+	bool is_lux = select_costrate + mean_move * exchange_costrate < mean_move * 5 * exchange_costrate;	//5は１つの断片を移動させるときに迂回して動かすときにかかる交換回数
+	bool is_small = width * height < 81;				//断片数が81より小さい時smallだと判断
+
+	//ぜいたくに選択を使う
+	if(is_small || is_lux)lux_move(ans2, state2, used2, fix_target2, max_select_times, height, width);
+
+    //targetでの右下にある断片の選択
+    ImageID first = target[height - 1][width - 1];
+    if(is_small || !is_lux) ans1.set_selectID(first);                        //選択断片IDのセット
+    if(is_small || is_lux)  ans2.set_selectID(first);                        //選択断片IDのセット
+
+    Index2D temp = first.get_index();
+    if(is_small || !is_lux) ans1.set_select(search_piece(first, state1));     //最初の選択
+    if(is_small || is_lux) ans2.set_select(search_piece(first, state2));     //最初の選択
+
+	//解を求める
+    if(is_small || !is_lux) solver(ans1, state1, used1, fix_target1, target, height, width);
+    if(is_small || is_lux) solver(ans2, state2, used2, fix_target2, target, height, width);
 
     //最終的な解答へ変換する
-    ans.finish();   
+    if(is_small || !is_lux) ans1.finish();   
+	if(is_small || is_lux) ans2.finish();
 
-    //解答を返す
-    return ans.ans(); 
+	//解答の比較
+	if(is_small){
+		auto total_cost1 = ans1.exchange_num() * exchange_costrate + ans1.select_num() * select_costrate;
+		auto total_cost2 = ans2.exchange_num() * exchange_costrate + ans2.select_num() * select_costrate;
+
+		printf("totalcost1 = %d\n", total_cost1);
+		printf("totalcost2 = %d\n", total_cost2);
+
+		//解答を返す
+		if(total_cost1 < total_cost2){
+			return ans1.ans(); 
+		}else{
+			return ans2.ans();
+		}
+	}else if(is_lux){
+		auto total_cost2 = ans2.exchange_num() * exchange_costrate + ans2.select_num() * select_costrate;
+		printf("totalcost2 = %d\n", total_cost2);
+		return ans2.ans();
+	}else{
+		auto total_cost1 = ans1.exchange_num() * exchange_costrate + ans1.select_num() * select_costrate;
+		printf("totalcost1 = %d\n", total_cost1);
+		return ans1.ans(); 
+	}
 
 }
 
