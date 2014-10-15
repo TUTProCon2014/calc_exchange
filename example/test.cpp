@@ -1,14 +1,10 @@
 #include "../include/calc_exchange.hpp"
-#include "../../guess_img/include/guess.hpp"
-#include "../../guess_img/include/pso_guess.hpp"
-#include "../../guess_img/include/rena_guess.hpp"
-#include "../../guess_img/include/bfs_guess.hpp"
+#include "../include/line_greedy_calc_exchange.hpp"
+#include "../../guess_img/include/blocked_guess.hpp"
+#include "../../guess_img/include/correlation.hpp"
 #include "../../inout/include/inout.hpp"
 #include "../../utils/include/types.hpp"
 #include "../../utils/include/dwrite.hpp"
-
-#define GUESS_FUNC bfs_guess::bfs_guess_parallel
-#define GUESS_PRED bfs_guess::diff_connection
 
 using namespace procon;
 
@@ -22,15 +18,10 @@ int main(){
         const utils::Problem& p = *p_opt;
 
         // 復元に使うための、2つの画像のくっつき度合いを返す関数
-        auto pred = [&](utils::Image const & img1,
-                        utils::Image const & img2,
-                        utils::Direction dir)
-        {
-            return GUESS_PRED(img1, img2, dir);
-        };
+        auto pred = guess::Correlator(p);
 
         // 復元
-        auto idxs = GUESS_FUNC(p, pred);
+        auto idxs = blocked_guess::guess(p, pred);
 
         std::cout << std::endl;
 

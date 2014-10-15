@@ -11,6 +11,7 @@
 #include <map>
 #include <cmath>
 #include <cstdio>
+#include <set>
 
 namespace procon { namespace calc_exchange{
 
@@ -29,16 +30,13 @@ private:
     int _exchange_num;  //交換数
 	unsigned long long int _state_num;	//状態の番号
     double _h;  //このノードからゴールまでの推定コスト
-    std::vector<std::shared_ptr<Node>> _next_state_list; //そのノードからたどれるノードのリスト
     std::shared_ptr<Node> _parent;  //親ノードのポインタ
     static size_t _max_select_times; //最大選択可能数
     static int _select_costrate;    //選択コストレート
     static int _exchange_costrate;  //交換コストレート
 	//階乗の値のリスト
-	const unsigned long long int fact[16] = {
-												1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800, 
-												39916800, 479001600, 6227020800, 87178291200, 1307674368000
-											};
+	const static unsigned long long int fact[16];
+
 public:
 
     Node(std::vector<std::vector<ImageID>> state, std::string op, Index2D select, int g, int select_num, int exchange_num) : _state(state), _op(op), _select(select), _g(g), _select_num(select_num), _exchange_num(exchange_num){
@@ -258,7 +256,6 @@ public:
             }
         }
         
-        _next_state_list = next;
         return next;
     }
 
@@ -333,7 +330,11 @@ public:
 //Nodeの静的メンバ変数の実体
 size_t Node::_max_select_times;
 int Node::_select_costrate;
-int Node::_exchange_costrate; 
+int Node::_exchange_costrate;
+const unsigned long long int Node::fact[16] = {
+    1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800,
+    39916800, 479001600, 6227020800, 87178291200, 1307674368000
+};
 
 //状態pを整列した番号にかえる対応付けの生成
 std::map<ImageID, ImageID> renumbering(std::shared_ptr<Node> p){
