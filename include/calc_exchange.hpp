@@ -27,15 +27,24 @@ private:
     int _g; //スタートからこのノードまでのコスト
     int _select_num;    //選択数
     int _exchange_num;  //交換数
+	unsigned long long int _state_num;	//状態の番号
     double _h;  //このノードからゴールまでの推定コスト
     std::vector<std::shared_ptr<Node>> _next_state_list; //そのノードからたどれるノードのリスト
     std::shared_ptr<Node> _parent;  //親ノードのポインタ
     static size_t _max_select_times; //最大選択可能数
     static int _select_costrate;    //選択コストレート
     static int _exchange_costrate;  //交換コストレート
+	//階乗の値のリスト
+	const unsigned long long int fact[16] = {
+												1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800, 
+												39916800, 479001600, 6227020800, 87178291200, 1307674368000
+											};
 public:
 
     Node(std::vector<std::vector<ImageID>> state, std::string op, Index2D select, int g, int select_num, int exchange_num) : _state(state), _op(op), _select(select), _g(g), _select_num(select_num), _exchange_num(exchange_num){
+		//state_numの計算
+		_state_num = calc_state_num(_state);
+		//std::cout << _state_num << std::endl;
     }
 
     //最大選択可能数をセットする
@@ -62,6 +71,31 @@ public:
     void set_parent(std::shared_ptr<Node> parent){
         _parent = parent;
     }
+
+	//state_numの作成
+	unsigned long long int calc_state_num(std::vector<std::vector<ImageID>> state){
+		unsigned long long int state_num = 0;	//状態番号
+		std::vector<int> perm;					//順列
+
+		//順列の生成
+		for(size_t i=0; i < _state.size(); i++){
+			for(size_t j=0; j < _state[0].size(); j++){
+				Index2D idx = state[i][j].get_index();
+				perm.push_back(idx[0] * i + idx[1]);
+			}
+		}
+
+		//state_numの作成
+		for(int i=perm.size()-1; i >=0; i--){
+			state_num += perm[i] * fact[i];
+			//計算した番号より大きい番号のものを１小さくする
+			for(int j = i-1; j >= 0; j--){
+				if(perm[j] > perm[i]) perm[j]--;
+			}
+		}
+
+		return state_num;
+	}
 
     //状態pを整列した番号にかえる対応付けの生成
     std::map<ImageID, ImageID> renumbering(std::shared_ptr<Node> p){
@@ -95,7 +129,9 @@ public:
 
         //_h = cost * 2.0 * exchange_costrate() + 2.5*cost* select_num() / max_select_times();
         //_h = 2.0 * cost * exchange_costrate();
-        _h = cost;
+        _h = 0.8*cost;
+        //_h = cost * 0.9 * exchange_costrate();
+        //_h = cost * 35.5 * exchange_costrate();
         return _h;
     }
 
@@ -287,6 +323,11 @@ public:
     int exchange_num() const{
         return _exchange_num;
     }
+
+	//_state_numのgetter
+	unsigned long long int state_num() const{
+		return _state_num;
+	}
 };
 
 //Nodeの静的メンバ変数の実体
@@ -437,9 +478,9 @@ struct LessNode{
             return false;
  
         //状態の配列すべての要素について比較
-        if(opCmp(ln->state(), rn->state()) < 0){
+        if(ln->state_num() < rn->state_num()){
             return true;
-        }else if(opCmp(ln->state(), rn->state()) > 0){
+        }else if(ln->state_num() > rn->state_num()){
             return false;
         }
 
@@ -465,6 +506,12 @@ std::multiset<std::shared_ptr<Node>>::iterator num_in_list(std::shared_ptr<Node>
 }
 
 std::vector<std::string>  calc_exchange(std::vector<std::vector<ImageID>> const & target, int select_costrate, int exchange_costrate, size_t max_select_times){
+
+	//断片数１６以上の画像がきたら終わらせる
+	if(target.size() * target[0].size() > 16){
+		PROCON_ENFORCE(0, "でかい");
+	}
+
     const size_t max_openlist_size = 500000;    //openlistの最大数
 
     //スタートの状態の生成
