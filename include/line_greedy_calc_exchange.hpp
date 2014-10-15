@@ -245,11 +245,11 @@ void target_piece_clear(Answer& ans, std::vector<std::vector<ImageID>>& state, s
     int mx[4] = {1, 0, -1, 0};
     size_t move_cnt = 0;        //xかyかどちらに移動するかを決定するためのカウント値
     //目的位置までの距離を示すポインタ
-    size_t* d1;
-    size_t* d2;
+    size_t* d1 = nullptr;
+    size_t* d2 = nullptr;
     //進む方向のポインタ
-    Direction* dir1;
-    Direction* dir2;
+    Direction* dir1 = nullptr;
+    Direction* dir2 = nullptr;
     //はじめにx移動かどうかのフラグ
     bool first_x = false;
 
