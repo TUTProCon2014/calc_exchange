@@ -29,21 +29,21 @@ private:
     int _g; //スタートからこのノードまでのコスト
     int _select_num;    //選択数
     int _exchange_num;  //交換数
-	unsigned long long int _state_num;	//状態の番号
+    unsigned long long int _state_num;  //状態の番号
     double _h;  //このノードからゴールまでの推定コスト
     std::shared_ptr<Node> _parent;  //親ノードのポインタ
     static size_t _max_select_times; //最大選択可能数
     static int _select_costrate;    //選択コストレート
     static int _exchange_costrate;  //交換コストレート
-	//階乗の値のリスト
-	const static unsigned long long int fact[16];
+    //階乗の値のリスト
+    const static unsigned long long int fact[16];
 
 public:
 
     Node(std::vector<std::vector<ImageID>> state, std::string op, Index2D select, int g, int select_num, int exchange_num) : _state(state), _op(op), _select(select), _g(g), _select_num(select_num), _exchange_num(exchange_num){
-		//state_numの計算
-		_state_num = calc_state_num(_state);
-		//std::cout << _state_num << std::endl;
+        //state_numの計算
+        _state_num = calc_state_num(_state);
+        //std::cout << _state_num << std::endl;
     }
 
     //最大選択可能数をセットする
@@ -71,30 +71,30 @@ public:
         _parent = parent;
     }
 
-	//state_numの作成
-	unsigned long long int calc_state_num(std::vector<std::vector<ImageID>> state){
-		unsigned long long int state_num = 0;	//状態番号
-		std::vector<int> perm;					//順列
+    //state_numの作成
+    unsigned long long int calc_state_num(std::vector<std::vector<ImageID>> state){
+        unsigned long long int state_num = 0;   //状態番号
+        std::vector<int> perm;                  //順列
 
-		//順列の生成
-		for(size_t i=0; i < _state.size(); i++){
-			for(size_t j=0; j < _state[0].size(); j++){
-				Index2D idx = state[i][j].get_index();
-				perm.push_back(idx[0] * i + idx[1]);
-			}
-		}
+        //順列の生成
+        for(size_t i=0; i < _state.size(); i++){
+            for(size_t j=0; j < _state[0].size(); j++){
+                Index2D idx = state[i][j].get_index();
+                perm.push_back(idx[0] * i + idx[1]);
+            }
+        }
 
-		//state_numの作成
-		for(int i=perm.size()-1; i >=0; i--){
-			state_num += perm[i] * fact[i];
-			//計算した番号より大きい番号のものを１小さくする
-			for(int j = i-1; j >= 0; j--){
-				if(perm[j] > perm[i]) perm[j]--;
-			}
-		}
+        //state_numの作成
+        for(int i=perm.size()-1; i >=0; i--){
+            state_num += perm[i] * fact[i];
+            //計算した番号より大きい番号のものを１小さくする
+            for(int j = i-1; j >= 0; j--){
+                if(perm[j] > perm[i]) perm[j]--;
+            }
+        }
 
-		return state_num;
-	}
+        return state_num;
+    }
 
     //状態pを整列した番号にかえる対応付けの生成
     std::map<ImageID, ImageID> renumbering(std::shared_ptr<Node> p){
@@ -322,10 +322,10 @@ public:
         return _exchange_num;
     }
 
-	//_state_numのgetter
-	unsigned long long int state_num() const{
-		return _state_num;
-	}
+    //_state_numのgetter
+    unsigned long long int state_num() const{
+        return _state_num;
+    }
 };
 
 //Nodeの静的メンバ変数の実体
@@ -397,17 +397,17 @@ std::vector<std::string> op_format(std::shared_ptr<Node> start_ptr, std::shared_
             }
 
             //選択画像位置
-			//まず整数値として読み込む
+            //まず整数値として読み込む
             std::stringstream ss(trace->op());
-			int x, y;
-			ss >> x;
-			ss >> y;
+            int x, y;
+            ss >> x;
+            ss >> y;
 
-			//16進数変換
+            //16進数変換
             std::stringstream sx;
             std::stringstream sy;
-			sx << std::uppercase << std::hex << x;
-			sy << std::uppercase << std::hex << y;
+            sx << std::uppercase << std::hex << x;
+            sy << std::uppercase << std::hex << y;
             ret.push_back(sx.str() + sy.str());
 
         }
@@ -517,10 +517,10 @@ std::multiset<std::shared_ptr<Node>>::iterator num_in_list(std::shared_ptr<Node>
 
 std::vector<std::string>  calc_exchange(std::vector<std::vector<ImageID>> const & target, int select_costrate, int exchange_costrate, size_t max_select_times){
 
-	//断片数１６以上の画像がきたら終わらせる
-	if(target.size() * target[0].size() > 16){
-		PROCON_ENFORCE(0, "でかい");
-	}
+    //断片数１６以上の画像がきたら終わらせる
+    if(target.size() * target[0].size() > 16){
+        PROCON_ENFORCE(0, "でかい");
+    }
 
     const size_t max_openlist_size = 500000;    //openlistの最大数
 
