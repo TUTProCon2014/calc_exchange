@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdio>
 #include <set>
+#include <iomanip>
 
 namespace procon { namespace calc_exchange{
 
@@ -246,7 +247,7 @@ public:
                 
                 //operationに選択座標を代入
                 std::stringstream selop;
-                selop << j << i;
+                selop << j << " " << i;
 
                 //次状態にセット
                 if(select_num() < max_select_times()){
@@ -378,7 +379,6 @@ std::vector<std::string> op_format(std::shared_ptr<Node> start_ptr, std::shared_
     std::vector<std::string> ret;
 
     std::string ops = "";
-
     std::shared_ptr<Node> trace = goal_ptr;
     while(trace != nullptr){
         if(trace->op() == ""){
@@ -397,9 +397,18 @@ std::vector<std::string> op_format(std::shared_ptr<Node> start_ptr, std::shared_
             }
 
             //選択画像位置
-            std::stringstream ss;
-            ss << trace->op();
-            ret.push_back(ss.str());
+			//まず整数値として読み込む
+            std::stringstream ss(trace->op());
+			int x, y;
+			ss >> x;
+			ss >> y;
+
+			//16進数変換
+            std::stringstream sx;
+            std::stringstream sy;
+			sx << std::uppercase << std::hex << x;
+			sy << std::uppercase << std::hex << y;
+            ret.push_back(sx.str() + sy.str());
 
         }
         trace = trace->parent();
