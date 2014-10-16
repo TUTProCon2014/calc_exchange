@@ -535,7 +535,6 @@ std::vector<std::string>  calc_exchange(std::vector<std::vector<ImageID>> const 
     std::shared_ptr<Node> goal_ptr(new Node(target, "", makeIndex2D(0, 0), std::numeric_limits<int>::max(), 0, 0)); //ゴール状態のポインタ
 
     std::shared_ptr<Node> start_ptr(new Node(ss, "no", makeIndex2D(0, 0), 0, 0, 0));    //スタート状態のポインタ
-    std::shared_ptr<Node> start_ptr2(new Node(ss, "no", makeIndex2D(0, 0), 0, 0, 0));   //スタート状態のポインタ
 
     std::map<ImageID, ImageID> targetzero = renumbering(goal_ptr);
 
@@ -549,7 +548,6 @@ std::vector<std::string>  calc_exchange(std::vector<std::vector<ImageID>> const 
 
     //スタートノードのコスト計算と親ノードの設定
     start_ptr->calc_cost_h(targetzero);
-    start_ptr2->calc_cost_h(targetzero);
     start_ptr->set_parent(nullptr);
 
     //スタートノードの後続ノードをopenlistに入れる
@@ -566,10 +564,7 @@ std::vector<std::string>  calc_exchange(std::vector<std::vector<ImageID>> const 
                 openlist.insert(st2);
             }
         }
-        closedlist.insert(st);
     }
-
-    openlist.insert(start_ptr);
 
     while(openlist.size() > 0){
         //メモリを食い過ぎる前に終わらせる
